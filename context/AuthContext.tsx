@@ -5,7 +5,6 @@ import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 
-// 1. We create a custom profile type that includes your database fields
 export interface ManagerProfile extends User {
   role: string;
   restaurantId: string;
@@ -31,61 +30,57 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setPermissionError(null); // Reset errors on new login attempt
+      // Reset state for new auth event
+      setPermissionError(null);
 
-      if (currentUser) {
-        try {
-          // 2. Search Firestore to find which restaurant this user belongs to
-          const restsSnapshot = await getDocs(collection(db, "restaurants"));
-          let userData = null;
-          let restId = "";
-
-          for (const restDoc of restsSnapshot.docs) {
-            const userDocRef = doc(db, "restaurants", restDoc.id, "users", currentUser.uid);
-            const userDocSnap = await getDoc(userDocRef);
-
-            if (userDocSnap.exists()) {
-              userData = userDocSnap.data();
-              restId = restDoc.id;
-              break;
-            }
-          }
-
-          // 3. Check their Role!
-          if (userData) {
-            const role = (userData.role || "").toLowerCase();
-            // Define exactly who is allowed in the building
-            const allowedRoles = ["admin", "manager", "foh manager", "boh manager"];
-
-            if (allowedRoles.includes(role)) {
-              // They are allowed! Save all their data so the dashboard can use it
-              setUser({
-                ...currentUser,
-                role: role,
-                restaurantId: restId,
-                name: userData.name,
-              });
-            } else {
-              // They are a real user, but just a team_member. Kick them out!
-              await signOut(auth);
-              setPermissionError(`Access Denied: Your role (${role}) does not have portal access.`);
-              setUser(null);
-            }
-          } else {
-             await signOut(auth);
-             setPermissionError("Error: Profile data not found in database.");
-             setUser(null);
-          }
-        } catch (err) {
-          console.error("Error fetching user profile:", err);
-          await signOut(auth);
-          setPermissionError("A network error occurred while verifying permissions.");
-          setUser(null);
-        }
-      } else {
+      if (!currentUser) {
         setUser(null);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      try {
+        // 1. Fetch all restaurants
+        const restsSnapshot = await getDocs(collection(db, "restaurants"));
+
+        // 2. Map through to create an array of promises for parallel lookup
+        const checkPromises = restsSnapshot.docs.map(async (restDoc) => {
+          const userDocRef = doc(db, "restaurants", restDoc.id, "users", currentUser.uid);
+          const snap = await getDoc(userDocRef);
+          return snap.exists() ? { data: snap.data(), restId: restDoc.id } : null;
+        });
+
+        // 3. Resolve all lookups concurrently
+        const results = await Promise.all(checkPromises);
+        const foundMatch = results.find((r) => r !== null);
+
+        if (foundMatch) {
+          const { data, restId } = foundMatch;
+          const role = (data.role || "").toLowerCase();
+          const allowedRoles = ["admin", "manager", "foh manager", "boh manager"];
+
+          if (allowedRoles.includes(role)) {
+            setUser({
+              ...currentUser,
+              role: role,
+              restaurantId: restId,
+              name: data.name || "User",
+            });
+          } else {
+            await signOut(auth);
+            setPermissionError(`Access Denied: Your role (${role}) is not authorized.`);
+          }
+        } else {
+          await signOut(auth);
+          setPermissionError("Error: Profile data not found in database.");
+        }
+      } catch (err) {
+        console.error("AuthContext Error:", err);
+        await signOut(auth);
+        setPermissionError("A network error occurred while verifying permissions.");
+      } finally {
+        setLoading(false);
+      }
     });
 
     return () => unsubscribe();
