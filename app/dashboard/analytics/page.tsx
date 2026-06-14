@@ -38,7 +38,7 @@ export default function AnalyticsPage() {
   const [metrics, setMetrics] = useState<LiveMetrics | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // hardcoded routing ID parameter - adjust to match your active restaurant slug node
+  // Hardcoded routing ID parameter - matches your active restaurant slug node
   const restaurantId = "golden-lion"; 
 
   useEffect(() => {
@@ -76,39 +76,36 @@ export default function AnalyticsPage() {
     { name: 'Food Sales', icon: ShoppingCart },
   ];
 
-  // --- COMPILER WORKFLOW: DYNAMIC GRAPH VALUE DATA DESK ---
-  const generateChartData = () => {
+  // --- COMPILER WORKFLOW: DYNAMIC GRAPH VALUE DATA DESK (TYPE-SAFE) ---
+  const generateChartData = (): { label: string; value: number }[] => {
     if (!metrics) return [];
 
-    // Generates a mock operational trend view matrix utilizing your live numbers
     switch (activeTab) {
       case 'Gross Sales':
         return [
-          { time: '11:00 AM', sales: metrics.grossSalesToday * 0.15 },
-          { time: '1:00 PM', sales: metrics.grossSalesToday * 0.40 },
-          { time: '4:00 PM', sales: metrics.grossSalesToday * 0.55 },
-          { time: '7:00 PM', sales: metrics.grossSalesToday * 0.85 },
-          { time: 'LIVE NOW', sales: metrics.grossSalesToday },
+          { label: '11:00 AM', value: metrics.grossSalesToday * 0.15 },
+          { label: '1:00 PM', value: metrics.grossSalesToday * 0.40 },
+          { label: '4:00 PM', value: metrics.grossSalesToday * 0.55 },
+          { label: '7:00 PM', value: metrics.grossSalesToday * 0.85 },
+          { label: 'LIVE NOW', value: metrics.grossSalesToday },
         ];
       case 'Wage Spending':
-        // Project labor out across an 8-hour shift curve
         return [
-          { hour: 'HR 1', cost: metrics.liveHourlyLaborRate },
-          { hour: 'HR 2', cost: metrics.liveHourlyLaborRate * 2 },
-          { hour: 'HR 4', cost: metrics.liveHourlyLaborRate * 4 },
-          { hour: 'RUNNING TOTAL', cost: metrics.liveHourlyLaborRate * 6 },
+          { label: 'HR 1', value: metrics.liveHourlyLaborRate },
+          { label: 'HR 2', value: metrics.liveHourlyLaborRate * 2 },
+          { label: 'HR 4', value: metrics.liveHourlyLaborRate * 4 },
+          { label: 'RUNNING TOTAL', value: metrics.liveHourlyLaborRate * 6 },
         ];
       case 'Net Profit':
-        // Compare revenue streams vs operational overhead spend bounds
         return [
-          { name: 'Overhead Costs', amount: metrics.grossSalesToday * 0.35 },
-          { name: 'Tax Pool', amount: metrics.taxCollectedToday },
-          { name: 'True Net Margins', amount: metrics.netSalesToday - (metrics.liveHourlyLaborRate * 5) },
+          { label: 'Overhead Costs', value: metrics.grossSalesToday * 0.35 },
+          { label: 'Tax Pool', value: metrics.taxCollectedToday },
+          { label: 'True Net Margins', value: metrics.netSalesToday - (metrics.liveHourlyLaborRate * 5) },
         ];
       case 'Food Sales':
         return [
-          { range: 'Avg Ticket', volume: metrics.totalClosedTickets > 0 ? metrics.netSalesToday / metrics.totalClosedTickets : 0 },
-          { range: 'Tickets Sold', volume: metrics.totalClosedTickets },
+          { label: 'Avg Ticket', value: metrics.totalClosedTickets > 0 ? metrics.netSalesToday / metrics.totalClosedTickets : 0 },
+          { label: 'Tickets Sold', value: metrics.totalClosedTickets },
         ];
       default:
         return [];
@@ -152,7 +149,7 @@ export default function AnalyticsPage() {
         </div>
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Labor Burn Run Rate</p>
-          <p className="text-2xl font-black text-rose-500 mt-2">${metrics?.liveHourlyLaborRate.toFixed(2)}/hr</p>
+          <p className="text-2xl font-black text-rose-500 mt-2">${metrics?.liveHourlyLaborRate.toFixed(2) || "0.00"}/hr</p>
         </div>
       </div>
 
@@ -188,7 +185,6 @@ export default function AnalyticsPage() {
         <div className="w-full h-96 mt-4">
           <ResponsiveContainer width="100%" height="100%">
             {activeTab === 'Gross Sales' || activeTab === 'Wage Spending' ? (
-              // Area graph presentation logic for rolling asset trends
               <AreaChart data={generateChartData()} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
@@ -197,19 +193,18 @@ export default function AnalyticsPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey={activeTab === 'Gross Sales' ? "time" : "hour"} stroke="#9ca3af" style={{ fontSize: 12 }} />
+                <XAxis dataKey="label" stroke="#9ca3af" style={{ fontSize: 12 }} />
                 <YAxis stroke="#9ca3af" style={{ fontSize: 12 }} tickFormatter={(val) => `$${val}`} />
                 <Tooltip formatter={(value) => [`$${Number(value).toFixed(2)}`, activeTab]} />
-                <Area type="monotone" dataKey={activeTab === 'Gross Sales' ? "sales" : "cost"} stroke={activeTab === 'Gross Sales' ? "#11CAA0" : "#ef4444"} strokeWidth={3} fillOpacity={1} fill="url(#chartGradient)" />
+                <Area type="monotone" dataKey="value" stroke={activeTab === 'Gross Sales' ? "#11CAA0" : "#ef4444"} strokeWidth={3} fillOpacity={1} fill="url(#chartGradient)" />
               </AreaChart>
             ) : (
-              // Discrete bar chart metrics layout presentation blocks
               <BarChart data={generateChartData()} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey={activeTab === 'Net Profit' ? "name" : "range"} stroke="#9ca3af" style={{ fontSize: 12 }} />
+                <XAxis dataKey="label" stroke="#9ca3af" style={{ fontSize: 12 }} />
                 <YAxis stroke="#9ca3af" style={{ fontSize: 12 }} />
-                <Tooltip formatter={(value) => [typeof value === 'number' && activeTab === 'Net Profit' ? `$${value.toFixed(2)}` : value]} />
-                <Bar dataKey={activeTab === 'Net Profit' ? "amount" : "volume"} fill="#005088" radius={[6, 6, 0, 0]} maxBarSize={60} />
+                <Tooltip formatter={(value) => [activeTab === 'Net Profit' ? `$${Number(value).toFixed(2)}` : value, activeTab]} />
+                <Bar dataKey="value" fill="#005088" radius={[6, 6, 0, 0]} maxBarSize={60} />
               </BarChart>
             )}
           </ResponsiveContainer>
