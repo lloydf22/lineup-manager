@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../context/AuthContext";
+import GlobalAssistant from "./components/GlobalAssistant";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,7 +20,11 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <AuthProvider>
+          {/* Main layout contents rendered here */}
           {children}
+          
+          {/* Floating global full-suite assistant available on all viewports */}
+          <GlobalAssistant />
         </AuthProvider>
       </body>
     </html>
